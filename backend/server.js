@@ -6,7 +6,23 @@ require("dotenv").config();
 
 const app = express();
 
-app.use(cors());
+const allowedOrigins = [
+  "https://zenermustaqim.github.io",
+  "http://localhost:5173",
+];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
+    },
+  })
+);
+
 app.use(express.json());
 
 app.get("/", (req, res) => {
