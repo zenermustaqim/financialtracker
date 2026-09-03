@@ -1,7 +1,33 @@
 import { useEffect, useState } from "react";
+import Login from "./components/Login";
 import "./App.css";
 
+const API_BASE_URL = import.meta.env.DEV
+  ? "http://localhost:5000"
+  : "https://financialtracker-api-g931.onrender.com";
+
 function App() {
+const [token, setToken] = useState(
+  sessionStorage.getItem("fintrack_token")
+);
+const [user, setUser] = useState(null);
+const [authLoading, setAuthLoading] = useState(true);
+
+const handleLogin = (newToken, userData) => {
+  sessionStorage.setItem("fintrack_token", newToken);
+
+  setToken(newToken);
+  setUser(userData);
+};
+
+const handleLogout = () => {
+  sessionStorage.removeItem("fintrack_token");
+
+  setToken(null);
+  setUser(null);
+  setTransactions([]);
+};
+
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -18,25 +44,71 @@ const [formData, setFormData] = useState({
   notes: "",
 });
 
-  useEffect(() => {
-    fetch("https://financialtracker-api-g931.onrender.com/api/transactions")
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Failed to load transactions");
-        }
+useEffect(() => {
+  const checkAuthentication = async () => {
+    if (!token) {
+      setAuthLoading(false);
+      return;
+    }
 
-        return response.json();
-      })
-      .then((data) => {
-        setTransactions(data);
-        setLoading(false);
-      })
-      .catch((error) => {
-        console.error(error);
-        setError("Unable to load transactions");
-        setLoading(false);
-      });
-  }, []);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/auth/me`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Session expired");
+      }
+
+      const userData = await response.json();
+
+      setUser(userData);
+    } catch (error) {
+      sessionStorage.removeItem("fintrack_token");
+
+      setToken(null);
+      setUser(null);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  checkAuthentication();
+}, [token]);
+
+  useEffect(() => {
+  if (!token) {
+    return;
+  }
+
+  fetch(`${API_BASE_URL}/api/transactions`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error("Failed to load transactions");
+      }
+
+      return response.json();
+    })
+    .then((data) => {
+      setTransactions(data);
+      setLoading(false);
+    })
+    .catch((error) => {
+      console.error(error);
+
+      setError("Unable to load transactions");
+      setLoading(false);
+    });
+}, [token]);
 
   const handleChange = (event) => {
   const { name, value } = event.target;
@@ -52,18 +124,19 @@ const handleSubmit = async (event) => {
 
   try {
     const response = await fetch(
-      "https://financialtracker-api-g931.onrender.com/api/transactions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...formData,
-          amount: Number(formData.amount),
-        }),
-      }
-    );
+  `${API_BASE_URL}/api/transactions`,
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      ...formData,
+      amount: Number(formData.amount),
+    }),
+  }
+);
 
     if (!response.ok) {
       throw new Error("Failed to save transaction");
@@ -137,6 +210,23 @@ const topCategories = Object.entries(categoryTotals)
       maximumFractionDigits: 0,
     }).format(number);
 
+    if (authLoading) {
+  return (
+    <div className="loading-screen">
+      Loading FinTrack...
+    </div>
+  );
+}
+
+if (!token || !user) {
+  return (
+    <Login
+      apiBaseUrl={API_BASE_URL}
+      onLogin={handleLogin}
+    />
+  );
+}
+
   return (
     <div className="app">
       <aside className="sidebar">
@@ -152,7 +242,19 @@ const topCategories = Object.entries(categoryTotals)
           </nav>
         </div>
 
-        <button className="nav-item">Settings</button>
+        <div>
+  <div className="user-info">
+    <strong>{user.name}</strong>
+    <span>{user.email}</span>
+  </div>
+
+  <button
+    className="nav-item logout-button"
+    onClick={handleLogout}
+  >
+    Sign Out
+  </button>
+</div>
       </aside>
 
       <main className="main">
