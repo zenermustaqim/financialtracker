@@ -19,7 +19,7 @@ const [formData, setFormData] = useState({
 });
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/transactions")
+    fetch("https://financialtracker-api-g931.onrender.com/api/transactions")
       .then((response) => {
         if (!response.ok) {
           throw new Error("Failed to load transactions");
@@ -52,7 +52,7 @@ const handleSubmit = async (event) => {
 
   try {
     const response = await fetch(
-      "http://localhost:5000/api/transactions",
+      "https://financialtracker-api-g931.onrender.com/api/transactions",
       {
         method: "POST",
         headers: {
